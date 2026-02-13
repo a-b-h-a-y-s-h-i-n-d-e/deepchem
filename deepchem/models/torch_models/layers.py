@@ -49,7 +49,8 @@ class MultilayerPerceptron(nn.Module):
                  batch_norm_momentum: float = 0.1,
                  activation_fn: Union[Callable, str] = 'relu',
                  skip_connection: bool = False,
-                 weighted_skip: bool = True):
+                 weighted_skip: bool = True,
+                 activate_output_layer: bool = True):
         """Initialize the model.
 
         Parameters
@@ -72,6 +73,8 @@ class MultilayerPerceptron(nn.Module):
             whether to add a skip connection from the input to the output
         weighted_skip: bool
             whether to add a weighted skip connection from the input to the output
+        activate_output_layer: bool
+            whether to apply activation function to the output layer, use False for regression task
         """
         super(MultilayerPerceptron, self).__init__()
         self.d_input = d_input
@@ -84,6 +87,7 @@ class MultilayerPerceptron(nn.Module):
         self.model = nn.Sequential(*self.build_layers())
         self.skip = nn.Linear(d_input, d_output) if skip_connection else None
         self.weighted_skip = weighted_skip
+        self.activate_output_layer = activate_output_layer
 
     def build_layers(self):
         """
@@ -106,12 +110,11 @@ class MultilayerPerceptron(nn.Module):
     def forward(self, x: Tensor) -> Tensor:
         """Forward pass of the model."""
         input = x
-        for layer in self.model:
+        for i, layer in enumerate(self.model):
             x = layer(x)
             if isinstance(layer, nn.Linear):
-                x = self.activation_fn(
-                    x
-                )  # Done because activation_fn returns a torch.nn.functional
+                if self.activate_output_layer or i < len(self.model) - 1:
+                    x = self.activation_fn(x)
         if self.skip is not None:
             if not self.weighted_skip:
                 return x + input
@@ -5463,8 +5466,9 @@ class FerminetElectronFeature(torch.nn.Module):
                 f: torch.Tensor = torch.cat((one_electron[:, i, :], g_one_up,
                                              g_one_down, g_two_up, g_two_down),
                                             dim=1)
-                if l == 0 or (self.n_one[l] != self.n_one[l - 1]) or (
-                        self.n_two[l] != self.n_two[l - 1]):
+                if l == 0 or (self.n_one[l]
+                              != self.n_one[l - 1]) or (self.n_two[l]
+                                                        != self.n_two[l - 1]):
                     one_electron_tmp.append((torch.tanh(self.v[l](f))) +
                                             self.projection_module[0]
                                             (one_electron[:, i, :]))
